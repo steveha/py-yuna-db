@@ -19,10 +19,6 @@ from src.yuna.lmdb_util import _delete_file_or_dir
 
 TEST_FILE = "/tmp/junk.ydb"
 
-#import pdb; pdb.set_trace()
-#db = Yuna(TEST_FILE, "test", 1, create=False)
-
-import pdb; pdb.set_trace()
 _delete_file_or_dir(TEST_FILE)
 db = Yuna(TEST_FILE, "test", 1, create=True)
 db.new_table("a26", serialize=yuna.SERIALIZE_STR)
