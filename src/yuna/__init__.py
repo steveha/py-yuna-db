@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get("x_value")
 """
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 import types
 

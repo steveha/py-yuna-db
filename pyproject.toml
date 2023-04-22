@@ -10,7 +10,7 @@ classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 readme = "README.md"
 requires-python = ">=3.6"
-requires = ["lmdb >=1.4.1,<2"]
+dependencies = ["lmdb >=1.4.1,<2"]
 
 [tool.flit.module]
 name = "yuna"
