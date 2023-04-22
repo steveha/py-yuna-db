@@ -35,11 +35,11 @@ from typing import Optional
 import lmdb
 
 
-from src.yuna.lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
-from src.yuna.lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
+from lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
+from lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
 
-from src.yuna.lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_put_meta
-from src.yuna.lmdb_util import _lmdb_table_delete, _lmdb_table_get, _lmdb_table_put
+from lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_put_meta
+from lmdb_util import _lmdb_table_delete, _lmdb_table_get, _lmdb_table_put
 
 
 # Create a unique object used to detect if optional arg not provided.

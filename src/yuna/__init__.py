@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get("x_value")
 """
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 import types
 
@@ -35,18 +35,18 @@ from typing import Optional
 import lmdb
 
 
-from src.yuna.lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
-from src.yuna.lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
+from lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
+from lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
 
-from src.yuna.lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_new_meta, _yuna_put_meta
-from src.yuna.lmdb_util import _lmdb_reserved_delete, _lmdb_reserved_get, _lmdb_reserved_put
-from src.yuna.lmdb_util import _lmdb_table_drop, _lmdb_table_open, _lmdb_table_truncate
+from lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_new_meta, _yuna_put_meta
+from lmdb_util import _lmdb_reserved_delete, _lmdb_reserved_get, _lmdb_reserved_put
+from lmdb_util import _lmdb_table_drop, _lmdb_table_open, _lmdb_table_truncate
 
-from src.yuna import plugins
-from src.yuna.plugins import _YUNA_NOT_PROVIDED
-from src.yuna.plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
-from src.yuna.plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
-from src.yuna.plugins import serialize_json
+import plugins
+from plugins import _YUNA_NOT_PROVIDED
+from plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
+from plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
+from plugins import serialize_json
 
 
 class YunaSharedData(object):
