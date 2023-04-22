@@ -1,4 +1,4 @@
-Yuna: dict-like semantics for LMDB
+Yuna DB: dict-like semantics for LMDB
 
 Yuna is a key/value store that's built upon LMDB (the Symas Lightning
 Memory-mapped Database).  LMDB really is lightning-fast, but as a C

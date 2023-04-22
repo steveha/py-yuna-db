@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Yuna database, Python implementation.
+Yuna DB: dict-like semantics for LMDB
 
 Yuna is a key/value store that's built upon LMDB (the Symas Lightning
 Memory-mapped Database).  LMDB really is lightning-fast, but as a C
@@ -16,14 +16,14 @@ automatically recover the value from the bytes string.
 For example, if x is any Python value that can be serialized by the chosen
 serialization format in table foo, this would work:
 
-db.tables.foo.put("x_value", x)
+db.tables.foo.put(key, x)
 
 After that .put() you can call .get():
 
-x = db.tables.foo.get("x_value")
+x = db.tables.foo.get(key)
 """
 
-__version__ = "0.0.4"
+__version__ = "0.1.0"
 
 import types
 
@@ -35,18 +35,18 @@ from typing import Optional
 import lmdb
 
 
-from lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
-from lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
+from .lmdb_util import YUNA_DEFAULT_MAX_DB_SIZE, YUNA_DEFAULT_MAX_TABLES
+from .lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
 
-from lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_new_meta, _yuna_put_meta
-from lmdb_util import _lmdb_reserved_delete, _lmdb_reserved_get, _lmdb_reserved_put
-from lmdb_util import _lmdb_table_drop, _lmdb_table_open, _lmdb_table_truncate
+from .lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_new_meta, _yuna_put_meta
+from .lmdb_util import _lmdb_reserved_delete, _lmdb_reserved_get, _lmdb_reserved_put
+from .lmdb_util import _lmdb_table_drop, _lmdb_table_open, _lmdb_table_truncate
 
-import plugins
-from plugins import _YUNA_NOT_PROVIDED
-from plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
-from plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
-from plugins import serialize_json
+from . import plugins
+from .plugins import _YUNA_NOT_PROVIDED
+from .plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
+from .plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
+from .plugins import serialize_json
 
 
 class YunaSharedData(object):
@@ -228,7 +228,7 @@ class Yuna(object):
         """
         Ensure that all data is flushed to disk.
 
-        Useful when Yuna was opend in "unsafe" mode.
+        Useful when Yuna was opened in "unsafe" mode.
         """
         _lmdb_sync(self._shared.env)
     def close(self):
