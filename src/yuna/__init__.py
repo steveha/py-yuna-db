@@ -23,6 +23,8 @@ After that .put() you can call .get():
 x = db.tables.foo.get("x_value")
 """
 
+__version__ = "0.0.2"
+
 import types
 
 from json import dumps as json_dumps
@@ -45,9 +47,6 @@ from src.yuna.plugins import _YUNA_NOT_PROVIDED
 from src.yuna.plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
 from src.yuna.plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
 from src.yuna.plugins import serialize_json
-
-
-VERSION = (0, 0, 1)
 
 
 class YunaSharedData(object):

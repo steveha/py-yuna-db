@@ -1,0 +1,16 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "yuna-db"
+authors = [{name = "Steve R. Hastings", email = "steve@hastings.org"}]
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+readme = "README.md"
+requires-python = ">=3.6"
+requires = ["lmdb >=1.4.1,<2"]
+
+[tool.flit.module]
+name = "yuna"
