@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 import types
 
@@ -111,8 +111,8 @@ class YunaTable(object):
         shared: YunaSharedData,
         name: str,
         key_serialize: Optional[str],
-        value_serialize: Optional[str],
-        value_compress: Optional[str],
+        serialize: Optional[str],
+        compress: Optional[str],
     ):
         if name in shared.tables_map:
             raise ValueError(f"table '{name}' is already open in this database")
@@ -123,17 +123,17 @@ class YunaTable(object):
         except ValueError:
             raise ValueError("unknown serialization format for key_serialize: {repr(key_serialize)}")
         try:
-            temp = plugins.get_serialize_plugins(value_serialize)
+            temp = plugins.get_serialize_plugins(serialize)
         except ValueError:
-            raise ValueError("unknown serialization format for value_serialize: {repr(value_serialize)}")
+            raise ValueError("unknown serialization format for serialize: {repr(serialize)}")
         try:
-            temp = plugins.get_compress_plugins(value_compress)
+            temp = plugins.get_compress_plugins(compress)
         except ValueError:
-            raise ValueError("unknown compression format for value_compress: {repr(value_compress)}")
+            raise ValueError("unknown compression format for compress: {repr(compress)}")
 
         meta = SimpleNamespace(
             name=name,
-            key_serialize=key_serialize, value_serialize=value_serialize, value_compress=value_compress
+            key_serialize=key_serialize, serialize=serialize, compress=compress
         )
         self._shared = shared
 
@@ -154,8 +154,8 @@ class YunaTable(object):
         lmdb_table = self.lmdb_table
 
         fn_delete = plugins.delete_factory(env, lmdb_table, key_serialize)
-        fn_get = plugins.get_factory(env, lmdb_table, key_serialize, value_serialize, value_compress)
-        fn_put = plugins.put_factory(env, lmdb_table, key_serialize, value_serialize, value_compress)
+        fn_get = plugins.get_factory(env, lmdb_table, key_serialize, serialize, compress)
+        fn_put = plugins.put_factory(env, lmdb_table, key_serialize, serialize, compress)
 
         # turn the freshly-created function objects into bound method functions of the class
         self.delete = types.MethodType(fn_delete, self)
@@ -187,8 +187,8 @@ class Yuna(object):
     def __init__(self,
         fname: str,
         # YunaDB name and version
-        name: Optional[str],
-        version: Optional[int],
+        name: Optional[str]=None,
+        version: Optional[int]=None,
 
         # details of an LMDB file follow
         read_only: bool=True,
@@ -221,8 +221,7 @@ class Yuna(object):
 
         # Set up an entry in .tables for each table listed in metadata, with delete/get/put functions ready to use.
         for meta in metadata["tables"].values():
-            YunaTable(self._shared,
-                    meta["name"], meta["key_serialize"], meta["value_serialize"], meta["value_compress"])
+            YunaTable(self._shared, meta["name"], meta["key_serialize"], meta["serialize"], meta["compress"])
 
     def sync(self):
         """
@@ -246,8 +245,8 @@ class Yuna(object):
     def new_table(self,
         name: str,
         key_serialize: Optional[str]=SERIALIZE_STR,
-        value_serialize: Optional[str]=None,
-        value_compress: Optional[str]=None
+        serialize: Optional[str]=None,
+        compress: Optional[str]=None
     ):
         """
         Open a new Yuna table.
@@ -255,7 +254,7 @@ class Yuna(object):
         Creates the table in the LMDB file, updates the Yuna metadata,
         and sets up serialization and optional compression as requested.
         """
-        tbl = YunaTable(self._shared, name, key_serialize, value_serialize, value_compress)
+        tbl = YunaTable(self._shared, name, key_serialize, serialize, compress)
 
         # YunaTable takes care of adding the new table to self.tables
         assert name in vars(self.tables)
