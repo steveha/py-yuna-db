@@ -23,9 +23,11 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 import types
+
+from dataclasses import dataclass
 
 from json import dumps as json_dumps
 from json import loads as json_loads
@@ -49,15 +51,15 @@ from .plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
 from .plugins import serialize_json
 
 
-class YunaSharedData(object):
+@dataclass
+class YunaSharedData:
     """
     Private data for Yuna, in a class by itself so it can be shared
     among the multiple classes implementing Yuna.
     """
-    def __init__(self, env: lmdb.Environment, tables_map: dict, metadata: dict):
-        self.env = env
-        self.tables_map = tables_map
-        self.metadata = metadata
+    env: lmdb.Environment
+    tables_map: dict
+    metadata: dict
 
 
 class YunaReservedTable(object):
@@ -101,6 +103,13 @@ class YunaTablesMap(object):
         pass
 
 
+@dataclass
+class YunaTableMetadata:
+    name: str
+    key_serialize: Optional[str] = None
+    serialize: Optional[str] = None
+    compress: Optional[str] = None
+
 class YunaTable(object):
     """
     This class implements a table for Yuna.
@@ -131,7 +140,7 @@ class YunaTable(object):
         except ValueError:
             raise ValueError("unknown compression format for compress: {repr(compress)}")
 
-        meta = SimpleNamespace(
+        meta = YunaTableMetadata(
             name=name,
             key_serialize=key_serialize, serialize=serialize, compress=compress
         )

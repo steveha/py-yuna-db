@@ -25,11 +25,12 @@ is not present in this file.  In that case, try checking for a newer
 release of Yuna DB.
 """
 
+from dataclasses import dataclass
+
 from json import dumps as json_dumps
 from json import loads as json_loads
 
-from types import SimpleNamespace
-from typing import Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 import lmdb
@@ -47,31 +48,27 @@ from .lmdb_util import _lmdb_table_delete, _lmdb_table_get, _lmdb_table_put
 _YUNA_NOT_PROVIDED = object()
 
 
-YUNA_SERIALIZE_CACHE = {}
+@dataclass
+class SerializePlugins:
+    serialize: Callable
+    deserialize: Callable
+    init: Optional[Callable] = None
+    options: Optional[Callable] = None
+
+@dataclass
+class CompressPlugins:
+    compress: Callable
+    decompress: Callable
+    init: Optional[Callable] = None
+    options: Optional[Callable] = None
+    train: Optional[Callable] = None
 
 
-class NoInit(object):
-    def __init__(self, verb: str, tag: str):
-        self.mesg = f"'{tag}' {verb} format does not have an init step!"
-    def __call__(self, *args, **kwargs):
-        raise RuntimeError(self.mesg)
-
-def _no_init_serialize(tag: str):
-    return NoInit("serialization", tag)
-def _no_init_compress(tag: str):
-    return NoInit("compression", tag)
+YUNA_SERIALIZE_CACHE: Dict[str, SerializePlugins] = {}
 
 
-class NoOptions(object):
-    def __init__(self, verb: str, tag: str):
-        self.mesg = f"'{tag}' {verb} format does not have any options"
-    def __call__(self, *args, **kwargs):
-        raise RuntimeError(self.mesg)
-
-def _no_options_serialize(tag: str):
-    return NoOptions("serialization", tag)
-def _no_options_compress(tag: str):
-    return NoOptions("compression", tag)
+def _not_implemented(*args, **kwargs) -> None:
+    raise NotImplemented("not implemented yet")
 
 
 INTEGER_KEY = "integer_key"
@@ -79,53 +76,47 @@ INTEGER_KEY = "integer_key"
 
 SERIALIZE_JSON = "json"
 
-def serialize_json(x: object):
+def serialize_json(x: Any) -> bytes:
     return json_dumps(x).encode("utf-8")
 
-def _import_json():
+def _import_json() -> None:
     import json
 
-    d = {
-        "init": _no_init_serialize(SERIALIZE_JSON),
-        "options": _no_options_serialize(SERIALIZE_JSON),
-        "serialize": serialize_json,
-        "deserialize": json_loads,
-    }
-    YUNA_SERIALIZE_CACHE[SERIALIZE_JSON] = SimpleNamespace(**d)
+    plugins = SerializePlugins(
+        serialize=serialize_json,
+        deserialize=json_loads,
+    )
+    YUNA_SERIALIZE_CACHE[SERIALIZE_JSON] = plugins
 
 
 SERIALIZE_MSGPACK = "msgpack"
 
 
-def _import_msgpack():
+def _import_msgpack() -> None:
     import msgpack
 
-    d = {
-        "init": _no_init_serialize(SERIALIZE_MSGPACK),
-        "options": _no_options_serialize(SERIALIZE_MSGPACK),
-        "serialize": msgpack.dumps,
-        "deserialize": msgpack.loads,
-    }
-    YUNA_SERIALIZE_CACHE[SERIALIZE_MSGPACK] = SimpleNamespace(**d)
+    plugins = SerializePlugins(
+        serialize=msgpack.dumps,
+        deserialize=msgpack.loads,
+    )
+    YUNA_SERIALIZE_CACHE[SERIALIZE_MSGPACK] = plugins
 
 
 SERIALIZE_STR = "str"
 
-def _bytes_from_str(s: str):
+def _serialize_str(s: str) -> bytes:
     return s.encode('utf-8')
 
-def _str_from_bytes(bytes_s: bytes):
+def _deserialize_str(bytes_s: bytes) -> str:
     return str(bytes_s, 'utf-8')
 
-def _import_str():
+def _import_str() -> None:
     # nothing to import; strings are built-in
-    d = {
-        "init": _no_init_serialize(SERIALIZE_STR),
-        "options": _no_options_serialize(SERIALIZE_STR),
-        "serialize": _bytes_from_str,
-        "deserialize": _str_from_bytes,
-    }
-    YUNA_SERIALIZE_CACHE[SERIALIZE_STR] = SimpleNamespace(**d)
+    plugins = SerializePlugins(
+        serialize=_serialize_str,
+        deserialize=_deserialize_str,
+    )
+    YUNA_SERIALIZE_CACHE[SERIALIZE_STR] = plugins
 
 
 _SERIALIZE_IMPORT_FUNCTIONS = {
@@ -136,34 +127,33 @@ _SERIALIZE_IMPORT_FUNCTIONS = {
 
 
 
-YUNA_COMPRESS_CACHE = {}
+YUNA_COMPRESS_CACHE: Dict[str, CompressPlugins] = {}
+
 
 COMPRESS_LZ4 = "lz4"
 
-def _import_lz4():
+def _import_lz4() -> None:
     import lz4
 
-    d = {
-        "init": _no_init_compress(COMPRESS_LZ4),
-        "options": _no_options_compress(COMPRESS_LZ4),
-        "compress": lz4.block.compress,
-        "decompress": lz4.block.decompress,
-    }
-    YUNA_COMPRESS_CACHE[COMPRESS_LZ4] = SimpleNamespace(**d)
+    plugins = CompressPlugins(
+        compress=lz4.block.compress,
+        decompress=lz4.block.decompress,
+    )
+    YUNA_COMPRESS_CACHE[COMPRESS_LZ4] = plugins
 
 
 COMPRESS_ZLIB = "zlib"
 
-def _import_zlib():
+def _import_zlib() -> None:
     import zlib
 
-    d = {
-        "init": _no_init_compress(COMPRESS_ZLIB),
-        "options": _no_options_compress(COMPRESS_ZLIB),  # TODO: add an options function
-        "compress": lz4.block.compress,
-        "decompress": lz4.block.decompress,
-    }
-    YUNA_COMPRESS_CACHE[COMPRESS_ZLIB] = SimpleNamespace(**d)
+    plugins = CompressPlugins(
+        init=None,
+        options=None,  # TODO: add an options function
+        compress=zlib.compress,
+        decompress=zlib.decompress,
+    )
+    YUNA_COMPRESS_CACHE[COMPRESS_ZLIB] = plugins
 
 
 COMPRESS_ZSTD = "zstd"
@@ -172,9 +162,10 @@ def _init_zstd():
     raise RuntimeError("init not implemented yet but is coming")
 def _options_zstd(*args, **kwargs):
     raise RuntimeError("options not implemented yet but is coming")
-def _train_zstd_factory():
+def _train_zstd_factory() -> Callable:
     # build the function inside this factory so that it will close over the module reference
-    def _train_zstd(size, samples):
+    fn_train_dictionary = zstandard.train_dictionary
+    def _train_zstd(size: int, samples: List[Any]) -> bytes:
         """
         @size: how many bytes the dictionary should be
         @samples: list of training data records
@@ -182,22 +173,22 @@ def _train_zstd_factory():
         Builds a compression dictionary of size @size from data in @samples
         """
         # TODO: see if an iterator works for @samples and update docs if it does
-        dict_data = zstandard.train_dictionary(*args, **kwargs)
-        bytes_data = dict_data.as_bytes()
+        compression_dictionary = fn_train_dictionary(*args, **kwargs)
+        bytes_data = compression_dictionary.as_bytes()
         return bytes_data
     return _train_zstd
 
-def _import_zstd():
+def _import_zstd() -> None:
     import zstandard
 
-    d = {
-        "init": _no_init_compress(COMPRESS_ZSTD), # TODO: add init()
-        "options": _options_zstd,
-        "compress": lz4.block.compress,
-        "decompress": lz4.block.decompress,
-        "train": _train_zstd_factory(),
-    }
-    YUNA_COMPRESS_CACHE[COMPRESS_ZSTD] = SimpleNamespace(**d)
+    plugins = CompressPlugins(
+        init=None, # TODO: add init()
+        options=None,  # TODO: add an options function
+        compress=_not_implemented,
+        decompress=_not_implemented,
+        train=_train_zstd_factory(),
+    )
+    YUNA_COMPRESS_CACHE[COMPRESS_ZSTD] = plugins
 
 
 _COMPRESS_IMPORT_FUNCTIONS = {
@@ -207,7 +198,7 @@ _COMPRESS_IMPORT_FUNCTIONS = {
 }
 
 
-def get_serialize_plugins(tag: Optional[str]):
+def get_serialize_plugins(tag: Optional[str]) -> dict:
     if tag is None:
         return None
     plugins = YUNA_SERIALIZE_CACHE.get(tag, None)
@@ -240,13 +231,28 @@ def get_compress_plugins(tag: str):
     return plugins
 
 
+# Python strings are much more convenient as keys than Python byte strings.
+# So, while it's legal to use byte strings as keys, Yuna doesn't really
+# expect that case, so we will always have a key serialization function.
+# This function does nothing, very quickly, to handle that case.  If the
+# user is passing a byte string anyway we can return it unchanged.
+def _return_bytes_unchanged(x: bytes) -> bytes:
+    """
+    Return a byte string unchanged.
+
+    Used as a key serialization function in cases where
+    no serialization is requested.
+    """
+    return x
+
+
 def _get_table_raw_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str
+    key_serialize_tag: Optional[str]
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     def get_raw(self, key: str, default: Optional[bytes]=_YUNA_NOT_PROVIDED) -> Optional[bytes]:
         bytes_key = fn_key_serialize(key)
@@ -262,11 +268,11 @@ def _get_table_raw_factory(
 def _get_table_deserialize_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_deserialize = value_plugins.deserialize
@@ -285,11 +291,11 @@ def _get_table_deserialize_factory(
 def _get_table_decompress_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_compress_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_plugins = get_compress_plugins(value_compress_tag)
     fn_value_decompress = value_plugins.decompress
@@ -308,12 +314,12 @@ def _get_table_decompress_factory(
 def _get_table_deserialize_decompress_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: str,
     value_compress_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_serialize_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_deserialize = value_serialize_plugins.deserialize
@@ -335,7 +341,7 @@ def _get_table_deserialize_decompress_factory(
 def get_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: Optional[str],
     value_compress_tag: Optional[str]
 ) -> object:  # TODO put correct typing class for "function object"
@@ -355,10 +361,10 @@ def get_factory(
 def _put_table_raw_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str
+    key_serialize_tag: Optional[str]
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     def put_raw(self, key: str, bytes_value: bytes) -> None:
         bytes_key = fn_key_serialize(key)
@@ -368,11 +374,11 @@ def _put_table_raw_factory(
 def _put_table_serialize_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_serialize = value_plugins.serialize
@@ -386,11 +392,11 @@ def _put_table_serialize_factory(
 def _put_table_compress_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_compress_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_plugins = get_compress_plugins(value_compress_tag)
     fn_value_compress = value_plugins.compress
@@ -404,12 +410,12 @@ def _put_table_compress_factory(
 def _put_table_serialize_compress_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: str,
     value_compress_tag: str
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     value_serialize_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_serialize = value_serialize_plugins.serialize
@@ -426,7 +432,7 @@ def _put_table_serialize_compress_factory(
 def put_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str,
+    key_serialize_tag: Optional[str],
     value_serialize_tag: Optional[str],
     value_compress_tag: Optional[str]
 ) -> object:  # TODO put correct typing class for "function object"
@@ -445,10 +451,10 @@ def put_factory(
 def delete_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
-    key_serialize_tag: str
+    key_serialize_tag: Optional[str]
 ) -> object:  # TODO put correct typing class for "function object"
     key_plugins = get_serialize_plugins(key_serialize_tag)
-    fn_key_serialize = key_plugins.serialize
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
 
     def delete(self, key: str) -> None:
         bytes_key = fn_key_serialize(key)
