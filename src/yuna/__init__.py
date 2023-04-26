@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 import types
 
@@ -162,14 +162,28 @@ class YunaTable(object):
         env = self._shared.env
         lmdb_table = self.lmdb_table
 
-        fn_delete = plugins.delete_factory(env, lmdb_table, key_serialize)
-        fn_get = plugins.get_factory(env, lmdb_table, key_serialize, serialize, compress)
-        fn_put = plugins.put_factory(env, lmdb_table, key_serialize, serialize, compress)
+        temp = plugins.delete_factory(env, lmdb_table, key_serialize)
+        self.delete = types.MethodType(temp, self)
 
-        # turn the freshly-created function objects into bound method functions of the class
-        self.delete = types.MethodType(fn_delete, self)
-        self.get = types.MethodType(fn_get, self)
-        self.put = types.MethodType(fn_put, self)
+        temp = plugins.get_factory(env, lmdb_table, key_serialize, serialize, compress)
+        self.get = types.MethodType(temp, self)
+
+        temp = plugins.put_factory(env, lmdb_table, key_serialize, serialize, compress)
+        self.put = types.MethodType(temp, self)
+
+        temp = plugins.keys_factory(env, lmdb_table, key_serialize)
+        self.keys = types.MethodType(temp, self)
+        temp = plugins.keys_factory(env, lmdb_table, None)
+        self.raw_keys = types.MethodType(temp, self)
+
+        temp = plugins.values_factory(env, lmdb_table, key_serialize, None, None)
+        self.raw_values = types.MethodType(temp, self)
+
+        temp = plugins.values_factory(env, lmdb_table, key_serialize, serialize, compress)
+        self.values = types.MethodType(temp, self)
+
+        temp = plugins.values_factory(env, lmdb_table, None, None, None)
+        self.raw_values = types.MethodType(temp, self)
 
         # Table instance fully created so keep track of it
         self._shared.tables_map[name] = self
