@@ -171,6 +171,11 @@ class YunaTable(object):
         temp = plugins.put_factory(env, lmdb_table, key_serialize, serialize, compress)
         self.put = types.MethodType(temp, self)
 
+        temp = plugins.items_factory(env, lmdb_table, key_serialize, serialize, compress)
+        self.items = types.MethodType(temp, self)
+        temp = plugins.items_factory(env, lmdb_table, None, None, None)
+        self.raw_items = types.MethodType(temp, self)
+
         temp = plugins.keys_factory(env, lmdb_table, key_serialize)
         self.keys = types.MethodType(temp, self)
         temp = plugins.keys_factory(env, lmdb_table, None)

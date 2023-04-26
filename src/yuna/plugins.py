@@ -502,6 +502,184 @@ def keys_factory(
     return keys
 
 
+def _items_table_raw_factory(
+    env: lmdb.Environment,
+    table: lmdb._Database,
+    key_serialize_tag: Optional[str]
+) -> Callable:
+    key_plugins = get_serialize_plugins(key_serialize_tag)
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
+    fn_key_deserialize = key_plugins.deserialize if key_plugins else _return_bytes_unchanged
+
+    def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        _empty_string_key_check(start)
+        _empty_string_key_check(stop)
+        bytes_stop = None
+        with env.begin() as txn:
+            cursor = txn.cursor(table)
+            if start is not None:
+                bytes_start = fn_key_serialize(start)
+                cursor.set_range(bytes_start)
+            if stop is not None:
+                bytes_stop = fn_key_serialize(stop)
+            itr = iter(cursor)
+            if bytes_stop is None:
+                if fn_key_deserialize is _return_bytes_unchanged:
+                    # The very fastest possible case: return byte keys and byte values, just use yield from!
+                    yield from itr
+                else:
+                    for bytes_key, bytes_value in itr:
+                        key = fn_key_deserialize(bytes_key)
+                        yield key, bytes_value
+            else:
+                for bytes_key, bytes_value in itr:
+                    if bytes_key >= bytes_stop:
+                        break
+                    key = fn_key_deserialize(bytes_key)
+                    yield key, bytes_value
+    return items
+
+def _items_table_deserialize_factory(
+    env: lmdb.Environment,
+    table: lmdb._Database,
+    key_serialize_tag: Optional[str],
+    value_serialize_tag: str
+) -> Callable:
+    key_plugins = get_serialize_plugins(key_serialize_tag)
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
+    fn_key_deserialize = key_plugins.deserialize if key_plugins else _return_bytes_unchanged
+
+    value_plugins = get_serialize_plugins(value_serialize_tag)
+    fn_value_deserialize = value_plugins.deserialize
+
+    def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        _empty_string_key_check(start)
+        _empty_string_key_check(stop)
+        bytes_stop = None
+        with env.begin() as txn:
+            cursor = txn.cursor(table)
+            if start is not None:
+                bytes_start = fn_key_serialize(start)
+                cursor.set_range(bytes_start)
+            if stop is not None:
+                bytes_stop = fn_key_serialize(stop)
+            itr = iter(cursor)
+            if bytes_stop is None:
+                for bytes_key, bytes_value in itr:
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_deserialize(bytes_value)
+                    yield key, value
+            else:
+                for bytes_key, bytes_value in itr:
+                    if bytes_key >= bytes_stop:
+                        break
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_deserialize(bytes_value)
+                    yield key, value
+    return items
+
+def _items_table_decompress_factory(
+    env: lmdb.Environment,
+    table: lmdb._Database,
+    key_serialize_tag: Optional[str],
+    value_compress_tag: str
+) -> Callable:
+    key_plugins = get_serialize_plugins(key_serialize_tag)
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
+    fn_key_deserialize = key_plugins.deserialize if key_plugins else _return_bytes_unchanged
+
+    value_plugins = get_compress_plugins(value_compress_tag)
+    fn_value_decompress = value_plugins.decompress
+
+    def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        _empty_string_key_check(start)
+        _empty_string_key_check(stop)
+        bytes_stop = None
+        with env.begin() as txn:
+            cursor = txn.cursor(table)
+            if start is not None:
+                bytes_start = fn_key_serialize(start)
+                cursor.set_range(bytes_start)
+            if stop is not None:
+                bytes_stop = fn_key_serialize(stop)
+            itr = iter(cursor)
+            if bytes_stop is None:
+                for bytes_key, bytes_value in itr:
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_decompress(bytes_value)
+                    yield key, value
+            else:
+                for bytes_key, bytes_value in itr:
+                    if bytes_key >= bytes_stop:
+                        break
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_decompress(bytes_value)
+                    yield key, value
+    return items
+
+def _items_table_deserialize_decompress_factory(
+    env: lmdb.Environment,
+    table: lmdb._Database,
+    key_serialize_tag: Optional[str],
+    value_serialize_tag: str,
+    value_compress_tag: str
+) -> Callable:
+    key_plugins = get_serialize_plugins(key_serialize_tag)
+    fn_key_serialize = key_plugins.serialize if key_plugins else _return_bytes_unchanged
+    fn_key_deserialize = key_plugins.deserialize if key_plugins else _return_bytes_unchanged
+
+    value_serialize_plugins = get_serialize_plugins(value_serialize_tag)
+    fn_value_deserialize = value_serialize_plugins.deserialize
+
+    value_compress_plugins = get_compress_plugins(value_compress_tag)
+    fn_value_decompress = value_compress_plugins.deserialize
+
+    def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        _empty_string_key_check(start)
+        _empty_string_key_check(stop)
+        bytes_stop = None
+        with env.begin() as txn:
+            cursor = txn.cursor(table)
+            if start is not None:
+                bytes_start = fn_key_serialize(start)
+                cursor.set_range(bytes_start)
+            if stop is not None:
+                bytes_stop = fn_key_serialize(stop)
+            itr = iter(cursor)
+            if bytes_stop is None:
+                for bytes_key, bytes_value in itr:
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                    yield key, value
+            else:
+                for bytes_key, bytes_value in itr:
+                    if bytes_key >= bytes_stop:
+                        break
+                    key = fn_key_deserialize(bytes_key)
+                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                    yield key, value
+    return items
+
+def items_factory(
+    env: lmdb.Environment,
+    table: lmdb._Database,
+    key_serialize_tag: Optional[str],
+    value_serialize_tag: Optional[str],
+    value_compress_tag: Optional[str]
+) -> Callable:
+    if value_serialize_tag and value_compress_tag:
+        return _items_table_deserialize_decompress_factory(
+                env, table, key_serialize_tag, value_serialize_tag, value_compress_tag)
+    elif not value_serialize_tag and value_compress_tag:
+        return _items_table_decompress_factory(
+                env, table, key_serialize_tag, value_compress_tag)
+    elif value_serialize_tag and not value_compress_tag:
+        return _items_table_deserialize_factory(
+                env, table, key_serialize_tag, value_serialize_tag)
+    else:
+        return _items_table_raw_factory(env, table, key_serialize_tag)
+
+
 def _values_table_raw_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
