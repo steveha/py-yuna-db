@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 import types
 
@@ -104,24 +104,22 @@ class YunaReservedTable:
     def keys(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = serialize_str(start) if (start is not None) else None
+        bytes_stop = serialize_str(stop) if (stop is not None) else None
         with self.env.begin() as txn:
-            cursor = txn.cursor()
-            if start is not None:
-                bytes_start = serialize_str(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = serialize_str(stop)
-            if bytes_stop is None:
-                for bytes_key, _ in cursor:
-                    key = deserialize_str(bytes_key)
-                    yield key
-            else:
-                for bytes_key, _ in cursor:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = deserialize_str(bytes_key)
-                    yield key
+            with txn.cursor() as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, _ in cursor:
+                        key = deserialize_str(bytes_key)
+                        yield key
+                else:
+                    for bytes_key, _ in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        key = deserialize_str(bytes_key)
+                        yield key
 
     def raw_delete(self, bytes_key: bytes) -> None:
         _lmdb_reserved_delete(self.env, bytes_key)
@@ -142,49 +140,49 @@ class YunaReservedTable:
         _empty_string_key_check(bytes_start)
         _empty_string_key_check(bytes_stop)
         with self.env.begin() as txn:
-            cursor = txn.cursor()
-            if bytes_start is not None:
-                cursor.set_range(bytes_start)
-            if bytes_stop is None:
-                for bytes_key, _ in cursor:
-                    yield bytes_key
-            else:
-                for bytes_key, _ in cursor:
-                    if bytes_key >= bytes_stop:
-                        break
-                    yield bytes_key
+            with txn.cursor() as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, _ in cursor:
+                        yield bytes_key
+                else:
+                    for bytes_key, _ in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        yield bytes_key
 
     def raw_items(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
         _empty_string_key_check(bytes_start)
         _empty_string_key_check(bytes_stop)
         with self.env.begin() as txn:
-            cursor = txn.cursor()
-            if bytes_start is not None:
-                cursor.set_range(bytes_start)
-            if bytes_stop is None:
-                for bytes_key, bytes_value in cursor:
-                    yield bytes_key, bytes_value
-            else:
-                for bytes_key, bytes_value in cursor:
-                    if bytes_key >= bytes_stop:
-                        break
-                    yield bytes_key, bytes_value
+            with txn.cursor() as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, bytes_value in cursor:
+                        yield bytes_key, bytes_value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        yield bytes_key, bytes_value
 
     def raw_values(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
         _empty_string_key_check(bytes_start)
         _empty_string_key_check(bytes_stop)
         with self.env.begin() as txn:
-            cursor = txn.cursor()
-            if bytes_start is not None:
-                cursor.set_range(bytes_start)
-            if bytes_stop is None:
-                for _, bytes_value in cursor:
-                    yield bytes_value
-            else:
-                for bytes_key, bytes_value in cursor:
-                    if bytes_key >= bytes_stop:
-                        break
-                    yield bytes_value
+            with txn.cursor() as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for _, bytes_value in cursor:
+                        yield bytes_value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        yield bytes_value
 
 
 class YunaTablesMap:

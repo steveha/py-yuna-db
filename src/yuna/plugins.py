@@ -482,25 +482,22 @@ def keys_factory(
     def keys(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for bytes_key, _ in itr:
-                    key = fn_key_deserialize(bytes_key)
-                    yield key
-            else:
-                for bytes_key, _ in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = fn_key_deserialize(bytes_key)
-                    yield key
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, _ in cursor:
+                        key = fn_key_deserialize(bytes_key)
+                        yield key
+                else:
+                    for bytes_key, _ in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        key = fn_key_deserialize(bytes_key)
+                        yield key
     return keys
 
 
@@ -516,29 +513,26 @@ def _items_table_raw_factory(
     def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                if fn_key_deserialize is _return_bytes_unchanged:
-                    # The very fastest possible case: return byte keys and byte values, just use yield from!
-                    yield from itr
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    if fn_key_deserialize is _return_bytes_unchanged:
+                        # The very fastest possible case: return byte keys and byte values, just use yield from!
+                        yield from cursor
+                    else:
+                        for bytes_key, bytes_value in cursor:
+                            key = fn_key_deserialize(bytes_key)
+                            yield key, bytes_value
                 else:
-                    for bytes_key, bytes_value in itr:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
                         key = fn_key_deserialize(bytes_key)
                         yield key, bytes_value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = fn_key_deserialize(bytes_key)
-                    yield key, bytes_value
     return items
 
 def _items_table_deserialize_factory(
@@ -557,27 +551,24 @@ def _items_table_deserialize_factory(
     def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for bytes_key, bytes_value in itr:
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_deserialize(bytes_value)
-                    yield key, value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_deserialize(bytes_value)
-                    yield key, value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, bytes_value in cursor:
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_deserialize(bytes_value)
+                        yield key, value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_deserialize(bytes_value)
+                        yield key, value
     return items
 
 def _items_table_decompress_factory(
@@ -596,27 +587,24 @@ def _items_table_decompress_factory(
     def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for bytes_key, bytes_value in itr:
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_decompress(bytes_value)
-                    yield key, value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_decompress(bytes_value)
-                    yield key, value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, bytes_value in cursor:
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_decompress(bytes_value)
+                        yield key, value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_decompress(bytes_value)
+                        yield key, value
     return items
 
 def _items_table_deserialize_decompress_factory(
@@ -639,27 +627,24 @@ def _items_table_deserialize_decompress_factory(
     def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for bytes_key, bytes_value in itr:
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
-                    yield key, value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    key = fn_key_deserialize(bytes_key)
-                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
-                    yield key, value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for bytes_key, bytes_value in cursor:
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                        yield key, value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        key = fn_key_deserialize(bytes_key)
+                        value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                        yield key, value
     return items
 
 def items_factory(
@@ -693,23 +678,20 @@ def _values_table_raw_factory(
     def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for _, bytes_value in itr:
-                    yield bytes_value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    yield bytes_value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for _, bytes_value in cursor:
+                        yield bytes_value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        yield bytes_value
     return values
 
 def _values_table_deserialize_factory(
@@ -727,25 +709,22 @@ def _values_table_deserialize_factory(
     def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for _, bytes_value in itr:
-                    value = fn_value_deserialize(bytes_value)
-                    yield value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    value = fn_value_deserialize(bytes_value)
-                    yield value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for _, bytes_value in cursor:
+                        value = fn_value_deserialize(bytes_value)
+                        yield value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        value = fn_value_deserialize(bytes_value)
+                        yield value
     return values
 
 def _values_table_decompress_factory(
@@ -763,25 +742,22 @@ def _values_table_decompress_factory(
     def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for _, bytes_value in itr:
-                    value = fn_value_decompress(bytes_value)
-                    yield value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    value = fn_value_decompress(bytes_value)
-                    yield value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for _, bytes_value in cursor:
+                        value = fn_value_decompress(bytes_value)
+                        yield value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        value = fn_value_decompress(bytes_value)
+                        yield value
     return values
 
 def _values_table_deserialize_decompress_factory(
@@ -803,25 +779,22 @@ def _values_table_deserialize_decompress_factory(
     def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
         _empty_string_key_check(stop)
-        bytes_stop = None
+        bytes_start = fn_key_serialize(start) if (start is not None) else None
+        bytes_stop = fn_key_serialize(stop) if (stop is not None) else None
         with env.begin() as txn:
-            cursor = txn.cursor(table)
-            if start is not None:
-                bytes_start = fn_key_serialize(start)
-                cursor.set_range(bytes_start)
-            if stop is not None:
-                bytes_stop = fn_key_serialize(stop)
-            itr = iter(cursor)
-            if bytes_stop is None:
-                for _, bytes_value in itr:
-                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
-                    yield value
-            else:
-                for bytes_key, bytes_value in itr:
-                    if bytes_key >= bytes_stop:
-                        break
-                    value = fn_value_deserialize(fn_value_decompress(bytes_value))
-                    yield value
+            with txn.cursor(table) as cursor:
+                if bytes_start is not None:
+                    cursor.set_range(bytes_start)
+                if bytes_stop is None:
+                    for _, bytes_value in cursor:
+                        value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                        yield value
+                else:
+                    for bytes_key, bytes_value in cursor:
+                        if bytes_key >= bytes_stop:
+                            break
+                        value = fn_value_deserialize(fn_value_decompress(bytes_value))
+                        yield value
     return values
 
 def values_factory(
