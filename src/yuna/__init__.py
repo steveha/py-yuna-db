@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.5"
+__version__ = "0.2.0"
 
 import types
 
@@ -191,8 +191,7 @@ class YunaTablesMap:
 
     This will be .tables in the open Yuna instance.
     """
-    def __init__(self):
-        pass
+    pass
 
 
 @dataclass
@@ -350,6 +349,12 @@ class Yuna:
         # Set up an entry in .tables for each table listed in metadata, with delete/get/put functions ready to use.
         for meta in metadata["tables"].values():
             YunaTable(self._shared, meta["name"], meta["key_serialize"], meta["serialize"], meta["compress"])
+
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._shared.env.close()
+        return False # if there was an exception, do not suppress it
 
     def sync(self):
         """

@@ -25,31 +25,29 @@ After that .put() you can call .get():
 ```
 from yuna import Yuna, SERIALIZE_JSON, SERIALIZE_STR
 
-db = Yuna("/tmp/test.ydb", create=True)
-db.new_table("names", serialize=SERIALIZE_JSON)
+with Yuna("/tmp/test.ydb", create=True) as db:
+	db.new_table("names", serialize=SERIALIZE_JSON)
 
-key = "feynman"
-value = dict(first_name="Richard", last_name="Feynman")
-db.tables.names.put(key, value)
+	key = "feynman"
+	value = dict(first_name="Richard", last_name="Feynman")
+	db.tables.names.put(key, value)
 
-temp = db.tables.names.get(key)
-assert temp == value
+	temp = db.tables.names.get(key)
+	assert temp == value
 
-db.new_table("abbrevs", serialize=SERIALIZE_STR)
-key = "l8r"
-value = "see you later"
+	db.new_table("abbrevs", serialize=SERIALIZE_STR)
+	key = "l8r"
+	value = "see you later"
 
-db.tables.abbrevs.put(key, value)
-temp = db.tables.abbrevs.get(key)
-assert temp == value
-
-db.close()
+	db.tables.abbrevs.put(key, value)
+	temp = db.tables.abbrevs.get(key)
+	assert temp == value
 ```
 
 # Planned new features to come:
 
-* Implement a context manager on the Yuna class
 * Support integer keys with a .insert() method providing autoincrement
 * Finish the Zstandard compression support
-* Add iterators to quickly find keys within a specified range
+* Add docstrings to the iterators
 * Add a REPL (Python with the yuna module already loaded and the DB open)
+* Add lots of unit tests
