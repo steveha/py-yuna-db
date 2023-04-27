@@ -23,16 +23,13 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 import types
 
 from dataclasses import dataclass
 
-from json import dumps as json_dumps
-from json import loads as json_loads
-from types import SimpleNamespace
-from typing import Optional
+from typing import Any, Iterator, Optional
 
 import lmdb
 
@@ -48,7 +45,9 @@ from . import plugins
 from .plugins import _YUNA_NOT_PROVIDED
 from .plugins import SERIALIZE_JSON, SERIALIZE_MSGPACK, SERIALIZE_STR
 from .plugins import COMPRESS_LZ4, COMPRESS_ZLIB, COMPRESS_ZSTD
-from .plugins import serialize_json
+from .plugins import serialize_json, deserialize_json
+from .plugins import serialize_str, deserialize_str
+from .plugins import _empty_string_key_check
 
 
 @dataclass
@@ -62,38 +61,133 @@ class YunaSharedData:
     metadata: dict
 
 
-class YunaReservedTable(object):
+class YunaReservedTable:
     """
     This class provides method functions to get/put values from the
     LMDB reserved table.
 
     This will be .reserved in the open Yuna instance.
     """
+    # This is opinionated code.  You cannot specify a serialization or compression format.
+    # If you need to do anything that requires a specific serialization or compression
+    # format, create a table and use that.  The reserved table should be mostly left alone.
+    # Note that LMDB stores things in the reserved table, and Bad Things would happen if
+    # you clobbered one of their special values.  In particular, any name used for a table
+    # must not be clobbered.
+    #
+    # If you somehow have a real need to put something other than JSON into the reserved
+    # table, serialize it yourself and use .raw_put() to store it.
+
     def __init__(self, env: lmdb.Environment):
         self.env = env
 
-    def delete(self, key: str):
-        bytes_key = bytes(key, 'utf-8')
+    def delete(self, key: str) -> None:
+        bytes_key = serialize_str(key)
         _lmdb_reserved_delete(self.env, bytes_key)
 
-    def get(self, key: str, default: object=_YUNA_NOT_PROVIDED):
-        bytes_key = bytes(key, 'utf-8')
+    def get(self, key: str, default: Any=_YUNA_NOT_PROVIDED) -> Any:
+        bytes_key = serialize_str(key)
         bytes_value = _lmdb_reserved_get(self.env, bytes_key, None)
         if bytes_value is None:
             if default is _YUNA_NOT_PROVIDED:
                 raise KeyError(key)
             else:
                 return default
-        value = json_loads(bytes_value)
+        value = deserialize_json(bytes_value)
         return value
 
-    def put(self, key: str, value: object):
-        bytes_key = bytes(key, 'utf-8')
+    def put(self, key: str, value: Any) -> None:
+        bytes_key = serialize_str(key)
         bytes_value = serialize_json(value)
         _lmdb_reserved_put(self.env, bytes_key, bytes_value)
 
+    def keys(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        _empty_string_key_check(start)
+        _empty_string_key_check(stop)
+        bytes_stop = None
+        with self.env.begin() as txn:
+            cursor = txn.cursor()
+            if start is not None:
+                bytes_start = serialize_str(start)
+                cursor.set_range(bytes_start)
+            if stop is not None:
+                bytes_stop = serialize_str(stop)
+            if bytes_stop is None:
+                for bytes_key, _ in cursor:
+                    key = deserialize_str(bytes_key)
+                    yield key
+            else:
+                for bytes_key, _ in cursor:
+                    if bytes_key >= bytes_stop:
+                        break
+                    key = deserialize_str(bytes_key)
+                    yield key
 
-class YunaTablesMap(object):
+    def raw_delete(self, bytes_key: bytes) -> None:
+        _lmdb_reserved_delete(self.env, bytes_key)
+
+    def raw_get(self, bytes_key: bytes, default: Any=_YUNA_NOT_PROVIDED) -> Any:
+        bytes_value = _lmdb_reserved_get(self.env, bytes_key, None)
+        if bytes_value is None:
+            if default is _YUNA_NOT_PROVIDED:
+                raise KeyError(key)
+            else:
+                return default
+        return bytes_value
+
+    def raw_put(self, bytes_key: bytes, bytes_value: bytes) -> None:
+        _lmdb_reserved_put(self.env, bytes_key, bytes_value)
+
+    def raw_keys(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        _empty_string_key_check(bytes_start)
+        _empty_string_key_check(bytes_stop)
+        with self.env.begin() as txn:
+            cursor = txn.cursor()
+            if bytes_start is not None:
+                cursor.set_range(bytes_start)
+            if bytes_stop is None:
+                for bytes_key, _ in cursor:
+                    yield bytes_key
+            else:
+                for bytes_key, _ in cursor:
+                    if bytes_key >= bytes_stop:
+                        break
+                    yield bytes_key
+
+    def raw_items(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        _empty_string_key_check(bytes_start)
+        _empty_string_key_check(bytes_stop)
+        with self.env.begin() as txn:
+            cursor = txn.cursor()
+            if bytes_start is not None:
+                cursor.set_range(bytes_start)
+            if bytes_stop is None:
+                for bytes_key, bytes_value in cursor:
+                    yield bytes_key, bytes_value
+            else:
+                for bytes_key, bytes_value in cursor:
+                    if bytes_key >= bytes_stop:
+                        break
+                    yield bytes_key, bytes_value
+
+    def raw_values(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        _empty_string_key_check(bytes_start)
+        _empty_string_key_check(bytes_stop)
+        with self.env.begin() as txn:
+            cursor = txn.cursor()
+            if bytes_start is not None:
+                cursor.set_range(bytes_start)
+            if bytes_stop is None:
+                for _, bytes_value in cursor:
+                    yield bytes_value
+            else:
+                for bytes_key, bytes_value in cursor:
+                    if bytes_key >= bytes_stop:
+                        break
+                    yield bytes_value
+
+
+class YunaTablesMap:
     """
     A trvial class, just used as a container for instances of YunaTable.
 
@@ -110,7 +204,7 @@ class YunaTableMetadata:
     serialize: Optional[str] = None
     compress: Optional[str] = None
 
-class YunaTable(object):
+class YunaTable:
     """
     This class implements a table for Yuna.
 
@@ -164,30 +258,38 @@ class YunaTable(object):
 
         temp = plugins.delete_factory(env, lmdb_table, key_serialize)
         self.delete = types.MethodType(temp, self)
+        temp = plugins.delete_factory(env, lmdb_table, None)
+        temp.__name__ = "raw_delete"
+        self.raw_delete = types.MethodType(temp, self)
 
         temp = plugins.get_factory(env, lmdb_table, key_serialize, serialize, compress)
         self.get = types.MethodType(temp, self)
+        temp = plugins.get_factory(env, lmdb_table, None, None, None)
+        temp.__name__ = "raw_get"
+        self.raw_get = types.MethodType(temp, self)
 
         temp = plugins.put_factory(env, lmdb_table, key_serialize, serialize, compress)
         self.put = types.MethodType(temp, self)
+        temp = plugins.put_factory(env, lmdb_table, None, None, None)
+        temp.__name__ = "raw_put"
+        self.raw_put = types.MethodType(temp, self)
 
         temp = plugins.items_factory(env, lmdb_table, key_serialize, serialize, compress)
         self.items = types.MethodType(temp, self)
         temp = plugins.items_factory(env, lmdb_table, None, None, None)
+        temp.__name__ = "raw_items"
         self.raw_items = types.MethodType(temp, self)
 
         temp = plugins.keys_factory(env, lmdb_table, key_serialize)
         self.keys = types.MethodType(temp, self)
         temp = plugins.keys_factory(env, lmdb_table, None)
+        temp.__name__ = "raw_keys"
         self.raw_keys = types.MethodType(temp, self)
-
-        temp = plugins.values_factory(env, lmdb_table, key_serialize, None, None)
-        self.raw_values = types.MethodType(temp, self)
 
         temp = plugins.values_factory(env, lmdb_table, key_serialize, serialize, compress)
         self.values = types.MethodType(temp, self)
-
         temp = plugins.values_factory(env, lmdb_table, None, None, None)
+        temp.__name__ = "raw_values"
         self.raw_values = types.MethodType(temp, self)
 
         # Table instance fully created so keep track of it
@@ -208,7 +310,7 @@ class YunaTable(object):
         _lmdb_table_truncate(self._shared.env, self.lmdb_table)
 
 
-class Yuna(object):
+class Yuna:
     """
     Key/value store with dict-like semantics.  A wrapper around LMDB.
     """

@@ -85,12 +85,14 @@ SERIALIZE_JSON = "json"
 def serialize_json(x: Any) -> bytes:
     return json_dumps(x).encode("utf-8")
 
+deserialize_json = json_loads
+
 def _import_json() -> None:
     import json
 
     plugins = SerializePlugins(
         serialize=serialize_json,
-        deserialize=json_loads,
+        deserialize=deserialize_json,
     )
     YUNA_SERIALIZE_CACHE[SERIALIZE_JSON] = plugins
 
@@ -110,17 +112,17 @@ def _import_msgpack() -> None:
 
 SERIALIZE_STR = "str"
 
-def _serialize_str(s: str) -> bytes:
+def serialize_str(s: str) -> bytes:
     return s.encode('utf-8')
 
-def _deserialize_str(bytes_s: bytes) -> str:
+def deserialize_str(bytes_s: bytes) -> str:
     return str(bytes_s, 'utf-8')
 
 def _import_str() -> None:
     # nothing to import; strings are built-in
     plugins = SerializePlugins(
-        serialize=_serialize_str,
-        deserialize=_deserialize_str,
+        serialize=serialize_str,
+        deserialize=deserialize_str,
     )
     YUNA_SERIALIZE_CACHE[SERIALIZE_STR] = plugins
 
