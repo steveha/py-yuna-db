@@ -23,7 +23,7 @@ TEST_FILE = "/tmp/junk.ydb"
 #import pdb; pdb.set_trace()
 _delete_file_or_dir(TEST_FILE)
 with Yuna(TEST_FILE, "test", 1, create=True) as db:
-    db.new_table("a26", serialize=yuna.SERIALIZE_STR)
+    db.new_table("a26", serialize=yuna.SERIALIZE_STR, compress=yuna.COMPRESS_LZ4)
     tbl_a26 = db.tables.a26
     tbl_a26.put("a", "1")
     tbl_a26.put("b", "2")

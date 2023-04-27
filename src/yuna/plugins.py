@@ -142,6 +142,7 @@ COMPRESS_LZ4 = "lz4"
 
 def _import_lz4() -> None:
     import lz4
+    import lz4.block
 
     plugins = CompressPlugins(
         compress=lz4.block.compress,
@@ -333,7 +334,7 @@ def _get_table_deserialize_decompress_factory(
     fn_value_deserialize = value_serialize_plugins.deserialize
 
     value_compress_plugins = get_compress_plugins(value_compress_tag)
-    fn_value_decompress = value_compress_plugins.deserialize
+    fn_value_decompress = value_compress_plugins.decompress
 
     def get(self, key: str, default: object=_YUNA_NOT_PROVIDED) -> object:
         bytes_key = fn_key_serialize(key)
@@ -429,7 +430,7 @@ def _put_table_serialize_compress_factory(
     fn_value_serialize = value_serialize_plugins.serialize
 
     value_compress_plugins = get_compress_plugins(value_compress_tag)
-    fn_value_compress = value_compress_plugins.serialize
+    fn_value_compress = value_compress_plugins.compress
 
     def put(self, key: str, value: object) -> object:
         bytes_key = fn_key_serialize(key)
@@ -622,7 +623,7 @@ def _items_table_deserialize_decompress_factory(
     fn_value_deserialize = value_serialize_plugins.deserialize
 
     value_compress_plugins = get_compress_plugins(value_compress_tag)
-    fn_value_decompress = value_compress_plugins.deserialize
+    fn_value_decompress = value_compress_plugins.decompress
 
     def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)
@@ -774,7 +775,7 @@ def _values_table_deserialize_decompress_factory(
     fn_value_deserialize = value_serialize_plugins.deserialize
 
     value_compress_plugins = get_compress_plugins(value_compress_tag)
-    fn_value_decompress = value_compress_plugins.deserialize
+    fn_value_decompress = value_compress_plugins.decompress
 
     def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
         _empty_string_key_check(start)

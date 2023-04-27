@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 import types
 
