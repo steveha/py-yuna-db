@@ -23,11 +23,10 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
+import os
 import types
-
-from dataclasses import dataclass
 
 from typing import Any, Iterator, Optional
 
@@ -50,15 +49,15 @@ from .plugins import serialize_str, deserialize_str
 from .plugins import _empty_string_key_check
 
 
-@dataclass
 class YunaSharedData:
     """
     Private data for Yuna, in a class by itself so it can be shared
     among the multiple classes implementing Yuna.
     """
-    env: lmdb.Environment
-    tables_map: dict
-    metadata: dict
+    def __init__(self, env: lmdb.Environment, tables_map: dict, metadata: dict):
+        self.env = env
+        self.tables_map = tables_map
+        self.metadata = metadata
 
 
 class YunaReservedTable:
@@ -77,6 +76,8 @@ class YunaReservedTable:
     #
     # If you somehow have a real need to put something other than JSON into the reserved
     # table, serialize it yourself and use .raw_put() to store it.
+    #
+    # LMDB lets you have any number of tables; use those and leave the reserved table alone.
 
     def __init__(self, env: lmdb.Environment):
         self.env = env
@@ -194,12 +195,18 @@ class YunaTablesMap:
     pass
 
 
-@dataclass
 class YunaTableMetadata:
-    name: str
-    key_serialize: Optional[str] = None
-    serialize: Optional[str] = None
-    compress: Optional[str] = None
+    def __init__(self,
+        name: str,
+        key_serialize: Optional[str] = None,
+        serialize: Optional[str] = None,
+        compress: Optional[str] = None,
+    ):
+        self.name = name
+        self.key_serialize = key_serialize
+        self.serialize = serialize
+        self.compress = compress
+
 
 class YunaTable:
     """
@@ -341,6 +348,7 @@ class Yuna:
         tables = YunaTablesMap()
         reserved = YunaReservedTable(env=env)
 
+        self.pathname = os.path.abspath(fname)
         self.metadata = metadata
         self.reserved = reserved
         self._shared = YunaSharedData(env=env, tables_map=vars(tables), metadata=metadata)
@@ -395,3 +403,10 @@ class Yuna:
         assert name in self._shared.metadata["tables"]
 
         return tbl
+
+class YunaReadOnly(Yuna):
+    def __init__(self, *args, **kwargs):
+        kwargs["read_only"] = True
+        kwargs["create"] = False
+        kwargs["safety_mode"] = 'u'
+        super().__init__(*args, **kwargs)

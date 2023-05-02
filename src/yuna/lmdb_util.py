@@ -36,8 +36,8 @@ _LMDB_UTIL_NOT_PROVIDED = object()
 # the "unnamed database".  Yuna calls this the "reserved table".
 #
 # LMDB calls the open LMDB file an "environment" and uses "env" as
-# the variable name for what is returned.  Yuna just calls it "the database"
-# and uses "lmdb" to refer to the open LMDB instance.
+# the variable name for what is returned.  Yuna's low-level LMDB code
+# uses this terminology but Yuna in general just refers to "the database".
 
 # LMDB files have to be declared with limits: maximum number of tables,
 # maximum total file size.  In practice it works quite well to simply give
@@ -45,6 +45,8 @@ _LMDB_UTIL_NOT_PROVIDED = object()
 # maximum declared size.  On Linux, the file may appear to be that size,
 # but in that case the "yuna_repack" utility can be used to make a copy
 # of the database file that is minimum size.
+#
+# TODO: implement the "yuna_repack" utility
 
 
 class YunaInvalidDB(ValueError):

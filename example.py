@@ -11,16 +11,20 @@ the basics are working.
 
 """
 
-from src import yuna
-from src.yuna import Yuna
-from src.yuna.lmdb_util import _delete_file_or_dir
+import os
+import sys
+
+# Hack sys.path so that this file will run against Yuna from this directory tree,
+# even if someone ran "pip install yuna-db" before running this.
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(THIS_DIR, "src")))
+
+import yuna
+from yuna import Yuna
+from yuna.lmdb_util import _delete_file_or_dir
 
 TEST_FILE = "/tmp/junk.ydb"
 
-#import pdb; pdb.set_trace()
-#db = Yuna(TEST_FILE, "test", 1, create=False)
-
-#import pdb; pdb.set_trace()
 _delete_file_or_dir(TEST_FILE)
 with Yuna(TEST_FILE, "test", 1, create=True) as db:
     db.new_table("a26", serialize=yuna.SERIALIZE_STR, compress=yuna.COMPRESS_LZ4)

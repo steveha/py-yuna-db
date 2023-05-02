@@ -25,8 +25,6 @@ is not present in this file.  In that case, try checking for a newer
 release of Yuna DB.
 """
 
-from dataclasses import dataclass
-
 from json import dumps as json_dumps
 from json import loads as json_loads
 
@@ -48,20 +46,31 @@ from .lmdb_util import _lmdb_table_delete, _lmdb_table_get, _lmdb_table_put
 _YUNA_NOT_PROVIDED = object()
 
 
-@dataclass
 class SerializePlugins:
-    serialize: Callable
-    deserialize: Callable
-    init: Optional[Callable] = None
-    options: Optional[Callable] = None
+    def __init__(self,
+        serialize: Callable,
+        deserialize: Callable,
+        init: Optional[Callable] = None,
+        options: Optional[Callable] = None,
+    ):
+        self.serialize = serialize
+        self.deserialize = deserialize
+        self.init = init
+        self.options = options
 
-@dataclass
 class CompressPlugins:
-    compress: Callable
-    decompress: Callable
-    init: Optional[Callable] = None
-    options: Optional[Callable] = None
-    train: Optional[Callable] = None
+    def __init__(self,
+        compress: Callable,
+        decompress: Callable,
+        init: Optional[Callable] = None,
+        options: Optional[Callable] = None,
+        train: Optional[Callable] = None,
+    ):
+        self.compress = compress
+        self.decompress = decompress
+        self.init = init
+        self.options = options
+        self.train = train
 
 
 YUNA_SERIALIZE_CACHE: Dict[str, SerializePlugins] = {}
