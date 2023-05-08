@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 import os
 import types
@@ -39,6 +39,7 @@ from .lmdb_util import YUNA_DB_META_KEY, YUNA_FILE_EXTENSION
 from .lmdb_util import _lmdb_open, _yuna_get_meta, _yuna_new_meta, _yuna_put_meta
 from .lmdb_util import _lmdb_reserved_delete, _lmdb_reserved_get, _lmdb_reserved_put
 from .lmdb_util import _lmdb_table_drop, _lmdb_table_open, _lmdb_table_truncate
+from .lmdb_util import delete_file_or_dir
 
 from . import plugins
 from .plugins import _YUNA_NOT_PROVIDED
@@ -54,10 +55,12 @@ class YunaSharedData:
     Private data for Yuna, in a class by itself so it can be shared
     among the multiple classes implementing Yuna.
     """
-    def __init__(self, env: lmdb.Environment, tables_map: dict, metadata: dict):
+    def __init__(self, env: lmdb.Environment, tables_map: dict, metadata: dict, read_only: bool):
         self.env = env
         self.tables_map = tables_map
         self.metadata = metadata
+        self.read_only = read_only
+        self.is_dirty = False
 
 
 class YunaReservedTable:
@@ -83,6 +86,9 @@ class YunaReservedTable:
         self.env = env
 
     def delete(self, key: str) -> None:
+        """
+        delete a key/value pair from the reserved table.
+        """
         bytes_key = serialize_str(key)
         _lmdb_reserved_delete(self.env, bytes_key)
 
@@ -192,7 +198,8 @@ class YunaTablesMap:
 
     This will be .tables in the open Yuna instance.
     """
-    pass
+    def __iter__(self):
+        return iter(vars(self).values())
 
 
 class YunaTableMetadata:
@@ -208,7 +215,194 @@ class YunaTableMetadata:
         self.compress = compress
 
 
-class YunaTable:
+class YunaTableBase:
+    # This class exists to document the method functions of a YunaTable.
+    #
+    # Most of the functions in YunaTable are made by a factory, and will
+    # be set to override these functions.  But Python will find and use
+    # the docstrings from these functions.  So this class is mainly
+    # to provide docstrings for all the functions.
+    def raw_delete(self, bytes_key: bytes) -> None:
+        """
+        Delete a key/value pair from the table using the exact bytes key.
+
+        No key serialization will be performed.
+        """
+        raise NotImplemented("must override")
+    def delete(self, key: str) -> None:
+        """
+        Delete a key/value pair from the table.
+        """
+        raise NotImplemented("must override")
+
+    def raw_put(self, bytes_key: bytes, bytes_value: bytes) -> None:
+        """
+        Put a bytes value to the table using the bytes key.
+
+        No key serialization will be performed.  No value serialization
+        or compression will be performed.  The exact bytes key will be used
+        to put the exact bytes value into the table.
+
+        If there's already a value in the table it will be overitten.
+        """
+        raise NotImplemented("must override")
+
+    def put(self, key: str, value: Any) -> None:
+        """
+        Put a value to the table using the key.
+
+        If there's already a value in the table it will be overitten.
+        """
+        raise NotImplemented("must override")
+
+    def get(self, key: str, default: Any=_YUNA_NOT_PROVIDED) -> Any:
+        """
+        Get a value from the table using the key.
+
+        If the key is not present in the table, and a default value
+        was provided, returns the default value.
+
+        If the key is not present in the table, and no default value
+        was provided, raises KeyError.
+        """
+        raise NotImplemented("must override")
+    def raw_get(self, bytes_key: bytes, default: Optional[bytes]=_YUNA_NOT_PROVIDED) -> Any:
+        """
+        Get a value from the table using the bytes_key.  This must be the
+        exact bytes key value; no key serialization will be performed.
+
+        If the key is not present in the table, and a default value
+        was provided, returns the default value.
+
+        If the key is not present in the table, and no default value
+        was provided, raises KeyError.
+        """
+        raise NotImplemented("must override")
+
+    def keys(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        """
+        Get an iterator that yields up keys from the table.
+        Keys will be yielded in the order of their byte key values
+        (i.e. the values of the keys after any serialization).
+
+        If start was provided, the iterator will start on the first key that
+        is equal to or greater than the provided start value.
+
+        If stop was provided, the iterator will stop before yielding
+        a key that is equal to or greater than the provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        a=1, b=2, d=4, e=5
+
+        Then keys(start='c', stop='e') would only yield one key: 'd'
+        """
+        raise NotImplemented("must override")
+    def raw_keys(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        """
+        Get an iterator that yields up raw keys from the table.  These will
+        be the actual byte strings of the keys; no key deserialization
+        will be performed.
+
+        If bytes_start was provided, the iterator will start on the first key that
+        is equal to or greater than the provided start value.
+
+        If bytes_stop was provided, the iterator will stop before yielding
+        a key that is equal to or greater than the provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        b'a'=0x01, b'b'=0x02, b'd'=0x04, b'e'=0x05
+
+        Then raw_keys(start=b'c', stop=b'e') would only yield one key: b'd'
+        """
+        raise NotImplemented("must override")
+
+    def items(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        """
+        Get an iterator that yields up key/value pairs from the table.
+        Each item will be a tuple of the form (key, value)
+        Tuples will be yielded in the order of their keys after serialization.
+
+        If start was provided, the iterator will start on the first key that
+        is equal to or greater than the provided start value.
+
+        If stop was provided, the iterator will stop before yielding
+        a key that is equal to or greater than the provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        a=1, b=2, d=4, e=5
+
+        Then items(start='c', stop='e') would only yield one tuple: ('d', 4)
+        """
+        raise NotImplemented("must override")
+    def raw_items(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        """
+        Get an iterator that yields up raw key/value pairs from the table.
+        Each item will be a tuple of the form (bytes_key, bytes_value)
+        Tuples will be yielded in the order of their byte keys.
+
+        No key deserialization will be performed.  No value deserialization
+        or decompression will be performed.
+
+        If start was provided, the iterator will start on the first key that
+        is equal to or greater than the provided start value.
+
+        If stop was provided, the iterator will stop before yielding
+        a key that is equal to or greater than the provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        b'a'=0x01, b'b'=0x02, b'd'=0x04, b'e'=0x05
+
+        raw_items(start=b'c', stop=b'e') would only yield one tuple: (b'd', 0x04)
+        """
+        raise NotImplemented("must override")
+
+    def values(self, start: Optional[str]=None, stop: Optional[str]=None) -> Iterator:
+        """
+        Get an iterator that yields up values from the table.
+        Values will be yielded in the order of their keys after serialization
+        (but the keys themselves will not be yielded).
+
+        If start was provided, the iterator will start on the value for the
+        first key that is equal to or greater than the provided start value.
+
+        If stop was provided, the iterator will stop before yielding
+        the value for the first key that is equal to or greater than the
+        provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        a=1, b=2, d=4, e=5
+
+        Then values(start='c', stop='e') would only yield one value: 4
+        """
+        raise NotImplemented("must override")
+    def raw_values(self, bytes_start: Optional[bytes]=None, bytes_stop: Optional[bytes]=None) -> Iterator:
+        """
+        Get an iterator that yields up actual byte values from the table.
+        Values will be yielded in the order of their byte keys
+        (but the keys themselves will not be yielded).
+        No deserialization or decompression of values will be performed.
+
+        If start was provided, the iterator will start on the value for the
+        first key that is equal to or greater than the provided start value.
+
+        If stop was provided, the iterator will stop before yielding
+        the value for the first key that is equal to or greater than the
+        provided stop value.
+
+        For example, if a table included the following key/value pairs:
+
+        b'a'=0x01, b'b'=0x02, b'd'=0x04, b'e'=0x05
+
+        Then raw_values(start=b'c', stop=b'e') would only yield one value: 0x04
+        """
+        raise NotImplemented("must override")
+
+class YunaTable(YunaTableBase):
     """
     This class implements a table for Yuna.
 
@@ -305,12 +499,22 @@ class YunaTable:
             assert self._shared.metadata["tables"][name] == vars(self.meta)
 
     def drop(self):
+        """
+        Drop a table.  Delete all key/value pairs and the table itself.
+        """
+        if self._shared.read_only:
+            raise RuntimeError("database was opened read-only; cannot drop table")
+
+        self._shared.is_dirty = True
         _lmdb_table_drop(self._shared.env, self.lmdb_table)
         del self._shared.tables_map[self.name]
         del self._shared.metadata["tables"][self.name]
         self._shared = self.lmdb_table = self.name = self.meta = None
 
     def truncate(self):
+        """
+        Delete all key/value pairs from table.
+        """
         _lmdb_table_truncate(self._shared.env, self.lmdb_table)
 
 
@@ -349,9 +553,10 @@ class Yuna:
         reserved = YunaReservedTable(env=env)
 
         self.pathname = os.path.abspath(fname)
+
         self.metadata = metadata
         self.reserved = reserved
-        self._shared = YunaSharedData(env=env, tables_map=vars(tables), metadata=metadata)
+        self._shared = YunaSharedData(env=env, tables_map=vars(tables), metadata=metadata, read_only=read_only)
         self.tables = tables
 
         # Set up an entry in .tables for each table listed in metadata, with delete/get/put functions ready to use.
@@ -361,7 +566,9 @@ class Yuna:
     def __enter__(self):
         return self
     def __exit__(self, exc_type, exc_value, traceback):
-        self._shared.env.close()
+        # if .close() was already called we have no work to do
+        if "_shared" in vars(self):
+            self.close()
         return False # if there was an exception, do not suppress it
 
     def sync(self):
@@ -370,19 +577,31 @@ class Yuna:
 
         Useful when Yuna was opened in "unsafe" mode.
         """
+        if self._shared.is_dirty and not self._shared.read_only:
+            _yuna_put_meta(self._shared.env, self._shared.metadata)
+            self._shared.is_dirty = False
         _lmdb_sync(self._shared.env)
+
     def close(self):
         """
         Close the Yuna instance.
 
         Ensures that all data is flushed to disk.
         """
+        if "_shared" not in vars(self):
+            return
+        if self._shared.is_dirty and not self._shared.read_only:
+            _yuna_put_meta(self._shared.env, self._shared.metadata)
+            self._shared.is_dirty = False
         self._shared.env.close()
         del self.tables
         del self._shared
+
+
     @property
     def table_names(self):
         return sorted(vars(self.tables))
+
     def new_table(self,
         name: str,
         key_serialize: Optional[str]=SERIALIZE_STR,
@@ -395,6 +614,9 @@ class Yuna:
         Creates the table in the LMDB file, updates the Yuna metadata,
         and sets up serialization and optional compression as requested.
         """
+        if self._shared.read_only:
+            raise RuntimeError("database was opened read-only; cannot make new table")
+
         tbl = YunaTable(self._shared, name, key_serialize, serialize, compress)
 
         # YunaTable takes care of adding the new table to self.tables
@@ -402,7 +624,66 @@ class Yuna:
         # YunaTable also updates the metadata
         assert name in self._shared.metadata["tables"]
 
+        self._shared.is_dirty = True
         return tbl
+
+    def new_table_like(self,
+        tbl: YunaTable,
+        name: Optional[str],
+    ):
+        """
+        Open a new Yuna table that's like another table that's already open.
+
+        Looks at the metadata in the table to find how the already-open table
+        was set up, then calls .new_table() with the same settings to make
+        a new table set up exactly the same as the already-open table.
+
+        If name is given as None, the new table will be given the same name
+        as the already-open table.  This only makes sense if the new table is
+        in a different Yuna database file than the already-open table.
+        """
+        # just copy all the metadata
+        meta = vars(tbl.meta).copy()
+
+        # if we have a new table name, set it in now
+        if name is not None:
+            meta["name"] = name
+
+        return self.new_table(**meta)
+
+    def repack(self):
+        """
+        Repack the database file to be minimal size.
+
+        Can only be done after you call the .close() method, to make
+        sure that all the data is safely written and the database
+        is in a clean state.
+
+        This actually makes a copy of the database file, then deletes
+        the original file and renames the copy to the original filename.
+        """
+        # first, check to see if this instance was properly closed
+        if "_shared" in vars(self):
+            raise RuntimeError("must call call .close() before calling .repack()")
+
+        # Use LMDB copy operation with compact=True for most efficient repacking
+        pathname_repack = self.pathname + ".yuna_repack"
+
+        # If someone interrupted an attempt to repack, clean up old repack attempt file now.
+        delete_file_or_dir(pathname_repack)
+
+        with YunaReadOnly(self.pathname, None, None) as db_old:
+            db_old._shared.env.copy(pathname_repack, compact=True)
+
+        # If no exception was raised, we have a new compacted database file!  Rename old to new.
+        delete_file_or_dir(self.pathname)
+        # If there's a lockfile, just delete it along with original file.
+        temp = self.pathname + "-lock"
+        if os.path.exists(temp):
+            os.remove(temp)
+
+        os.rename(pathname_repack, self.pathname)
+
 
 class YunaReadOnly(Yuna):
     def __init__(self, *args, **kwargs):

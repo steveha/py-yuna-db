@@ -26,22 +26,22 @@ After that .put() you can call .get():
 from yuna import Yuna, SERIALIZE_JSON, SERIALIZE_STR
 
 with Yuna("/tmp/test.ydb", create=True) as db:
-	db.new_table("names", serialize=SERIALIZE_JSON)
+    db.new_table("names", serialize=SERIALIZE_JSON)
 
-	key = "feynman"
-	value = dict(first_name="Richard", last_name="Feynman")
-	db.tables.names.put(key, value)
+    key = "feynman"
+    value = dict(first_name="Richard", last_name="Feynman")
+    db.tables.names.put(key, value)
 
-	temp = db.tables.names.get(key)
-	assert temp == value
+    temp = db.tables.names.get(key)
+    assert temp == value
 
-	db.new_table("abbrevs", serialize=SERIALIZE_STR)
-	key = "l8r"
-	value = "see you later"
+    db.new_table("abbrevs", serialize=SERIALIZE_STR)
+    key = "l8r"
+    value = "see you later"
 
-	db.tables.abbrevs.put(key, value)
-	temp = db.tables.abbrevs.get(key)
-	assert temp == value
+    db.tables.abbrevs.put(key, value)
+    temp = db.tables.abbrevs.get(key)
+    assert temp == value
 ```
 
 # Planned new features to come:

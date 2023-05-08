@@ -62,7 +62,7 @@ YUNA_DEFAULT_MAX_DB_SIZE = 2**40  # one tebibyte (binary terabyte): 1024**4
 _VALID_SAFETY_MODES = ('a', 'u')
 
 
-def _delete_file_or_dir(fname: str):
+def delete_file_or_dir(fname: str):
     # If it doesn't exist, we don't complain, similar to /bin/rm -f on Linux
     if not os.path.exists(fname):
         return
@@ -278,7 +278,7 @@ def _lmdb_open(
     # Create implies we want to be able to write.  Don't even check it, just make sure read_only is False.
     if create:
         read_only = False
-        _delete_file_or_dir(fname)
+        delete_file_or_dir(fname)
 
     try:
         kwargs = {

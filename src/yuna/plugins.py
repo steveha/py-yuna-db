@@ -295,7 +295,7 @@ def _get_table_deserialize_factory(
     value_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_deserialize = value_plugins.deserialize
 
-    def get(self, key: str, default: object=_YUNA_NOT_PROVIDED) -> object:
+    def get(self, key: str, default: Any=_YUNA_NOT_PROVIDED) -> Any:
         bytes_key = fn_key_serialize(key)
         result = _lmdb_table_get(env, table, bytes_key, None)
         if result is None:
@@ -318,7 +318,7 @@ def _get_table_decompress_factory(
     value_plugins = get_compress_plugins(value_compress_tag)
     fn_value_decompress = value_plugins.decompress
 
-    def get(self, key: str, default: object=_YUNA_NOT_PROVIDED) -> object:
+    def get(self, key: str, default: Any=_YUNA_NOT_PROVIDED) -> Any:
         bytes_key = fn_key_serialize(key)
         result = _lmdb_table_get(env, table, bytes_key, None)
         if result is None:
@@ -345,7 +345,7 @@ def _get_table_deserialize_decompress_factory(
     value_compress_plugins = get_compress_plugins(value_compress_tag)
     fn_value_decompress = value_compress_plugins.decompress
 
-    def get(self, key: str, default: object=_YUNA_NOT_PROVIDED) -> object:
+    def get(self, key: str, default: Any=_YUNA_NOT_PROVIDED) -> Any:
         bytes_key = fn_key_serialize(key)
         result = _lmdb_table_get(env, table, bytes_key, None)
         if result is None:
@@ -401,7 +401,7 @@ def _put_table_serialize_factory(
     value_plugins = get_serialize_plugins(value_serialize_tag)
     fn_value_serialize = value_plugins.serialize
 
-    def put(self, key: str, value: object) -> object:
+    def put(self, key: str, value: Any) -> None:
         bytes_key = fn_key_serialize(key)
         bytes_value = fn_value_serialize(value)
         _lmdb_table_put(env, table, bytes_key, bytes_value)
@@ -419,7 +419,7 @@ def _put_table_compress_factory(
     value_plugins = get_compress_plugins(value_compress_tag)
     fn_value_compress = value_plugins.compress
 
-    def put(self, key: str, value: object) -> object:
+    def put(self, key: str, value: Any) -> None:
         bytes_key = fn_key_serialize(key)
         bytes_value = fn_value_compress(result)
         _lmdb_table_put(env, table, bytes_key, bytes_value)
@@ -441,7 +441,7 @@ def _put_table_serialize_compress_factory(
     value_compress_plugins = get_compress_plugins(value_compress_tag)
     fn_value_compress = value_compress_plugins.compress
 
-    def put(self, key: str, value: object) -> object:
+    def put(self, key: str, value: Any) -> None:
         bytes_key = fn_key_serialize(key)
         bytes_value = fn_value_compress(fn_value_serialize(value))
         _lmdb_table_put(env, table, bytes_key, bytes_value)
@@ -480,6 +480,7 @@ def delete_factory(
     return delete
 
 
+# TODO: change the types on keys from str to Any
 def keys_factory(
     env: lmdb.Environment,
     table: lmdb._Database,
