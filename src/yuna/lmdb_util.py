@@ -210,7 +210,7 @@ def _yuna_get_meta(
     value = _lmdb_reserved_get(env, key, default=None)
     if value is None:
         fname = env.path()
-        raise YunaInvalidDB(f"LMDB file is not a Yuna DB file: {repr(fname)}")
+        raise YunaInvalidDB(f"LMDB file is not a Yuna DB file: {fname!r}")
 
     # We got something... does it decode as valid JSON?
     try:
@@ -220,17 +220,17 @@ def _yuna_get_meta(
             raise ValueError
     except (ValueError, TypeError, json.decoder.JSONDecodeError):
         fname = env.path()
-        raise YunaInvalidDB(f"Yuna DB has corrupted metadata: {repr(fname)}")
+        raise YunaInvalidDB(f"Yuna DB has corrupted metadata: {fname!r}")
 
     # If user provided name and/or version, make appropriate checks.
     if name is not None:
         temp = meta.get("name", None)
         if temp != name:
-            raise YunaInvalidDB(f"LMDB file name mismatch: expected {repr(name)}, got {repr(temp)}")
+            raise YunaInvalidDB(f"LMDB file 'name' mismatch: expected {name!r}, got {temp!r}")
     if version is not None:
         temp = meta.get("version", None)
         if temp != version:
-            raise YunaInvalidDB(f"LMDB file version mismatch: expected {version}, got {temp}")
+            raise YunaInvalidDB(f"LMDB file 'version' mismatch: expected {version}, got {temp}")
     return meta
 
 
@@ -263,7 +263,7 @@ def _lmdb_open(
     """
     if safety_mode not in _VALID_SAFETY_MODES:
         mesg = f"safety_mode must be one of {_VALID_SAFETY_MODES} "\
-            "but instead was {repr(safety_mode)}"
+            "but instead was {safety_mode!r}"
         raise ValueError(mesg)
 
     if not create:

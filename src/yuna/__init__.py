@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 import os
 import types
@@ -422,15 +422,15 @@ class YunaTable(YunaTableBase):
         try:
             temp = plugins.get_serialize_plugins(key_serialize)
         except ValueError:
-            raise ValueError("unknown serialization format for key_serialize: {repr(key_serialize)}")
+            raise ValueError("unknown serialization format for key_serialize: {key_serialize!r}")
         try:
             temp = plugins.get_serialize_plugins(serialize)
         except ValueError:
-            raise ValueError("unknown serialization format for serialize: {repr(serialize)}")
+            raise ValueError("unknown serialization format for serialize: {serialize!r}")
         try:
             temp = plugins.get_compress_plugins(compress)
         except ValueError:
-            raise ValueError("unknown compression format for compress: {repr(compress)}")
+            raise ValueError("unknown compression format for compress: {compress!r}")
 
         meta = YunaTableMetadata(
             name=name,
