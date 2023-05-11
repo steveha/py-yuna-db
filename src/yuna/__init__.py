@@ -23,7 +23,7 @@ After that .put() you can call .get():
 x = db.tables.foo.get(key)
 """
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 import os
 import types
@@ -497,6 +497,15 @@ class YunaTable(YunaTableBase):
             _yuna_put_meta(self._shared.env, self._shared.metadata)
         else:
             assert self._shared.metadata["tables"][name] == vars(self.meta)
+
+    def __delitem__(self, key):
+        return self.delet(key)
+
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __setitem__(self, key, value):
+        return self.put(key, value)
 
     def drop(self):
         """

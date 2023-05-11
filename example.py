@@ -32,8 +32,8 @@ with Yuna(TEST_FILE, "test", 1, create=True) as db:
     tbl_a26.put("a", "1")
     tbl_a26.put("b", "2")
     #tbl_a26.put("c", "3")
-    tbl_a26.put("d", "4")
-    tbl_a26.put("e", "5")
+    tbl_a26["d"] = "4"
+    tbl_a26["e"] = "5"
 
     lst = list(tbl_a26.keys())
     print(f"a26 keys: {lst}")

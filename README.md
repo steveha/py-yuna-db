@@ -19,6 +19,15 @@ After that .put() you can call .get():
 
 `x = db.tables.foo.get(key)`
 
+And of course you can delete it:
+
+`db.tables.foo.delete(key)`
+
+
+If you want to use dict syntax, that's supported as well:
+`db.tables.foo[key] = x`
+`x = db.tables.foo[key]`
+`del db.tables.foo[key]`
 
 # Example
 
@@ -35,13 +44,12 @@ with Yuna("/tmp/test.ydb", create=True) as db:
     temp = db.tables.names.get(key)
     assert temp == value
 
-    db.new_table("abbrevs", serialize=SERIALIZE_STR)
+    tbl_abbrevs = db.new_table("abbrevs", serialize=SERIALIZE_STR)
     key = "l8r"
     value = "see you later"
 
-    db.tables.abbrevs.put(key, value)
-    temp = db.tables.abbrevs.get(key)
-    assert temp == value
+    tbl_abbrevs[key] = value
+    assert value == tbl_abbrevs[key]
 ```
 
 # Planned new features to come:
